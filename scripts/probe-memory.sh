@@ -1,6 +1,6 @@
 #!/bin/bash
 # Diagnose memory state on a Jetson before running CUDA workloads.
-# Read tegrastats lfb (largest free block) carefully — anything below
+# Read tegrastats lfb (largest free block) carefully: anything below
 # ~8 MB suggests fragmentation that will bite CUDA allocators.
 set -u
 
@@ -16,7 +16,7 @@ echo
 echo "=== top RAM consumers (top 10) ==="
 ps -eo pmem,rss,comm --sort=-rss | head -11
 echo
-echo "=== tegrastats baseline (3 samples — watch lfb) ==="
+echo "=== tegrastats baseline (3 samples, watch lfb) ==="
 timeout 2 tegrastats --interval 500 2>/dev/null | head -3
 echo
 echo "=== uptime ==="

@@ -16,6 +16,6 @@ venv/
 tegra*.log
 llama_*.log
 
-# Local test data we don't want to ship
+# Local test data I don't want to ship
 test_data/
 fixtures/

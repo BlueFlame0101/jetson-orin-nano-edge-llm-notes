@@ -2,12 +2,12 @@
 
 The Contiguous Memory Allocator (CMA) is a kernel-level pool used by NvMap
 (NVIDIA's Tegra memory allocator) to satisfy large contiguous physical
-allocations. CUDA on Jetson — including both `cudaMalloc` from llama.cpp and
-PyTorch's caching allocator — bottoms out in NvMap, which bottoms out in CMA
-when the request is contiguity-sensitive.
+allocations. CUDA on Jetson bottoms out in NvMap, which bottoms out in CMA
+when the request is contiguity-sensitive. This applies to both `cudaMalloc`
+from llama.cpp and PyTorch's caching allocator.
 
 The default CMA region on JetPack 6.2.2 / L4T R36.5.0 on Orin Nano 8 GB is
-**256 MB**. That's too small once you start loading anything Gemma-sized.
+256 MB. That's too small once you start loading anything Gemma-sized.
 
 ## Symptom
 
@@ -21,9 +21,9 @@ ggml_backend_cuda_buffer_type_alloc_buffer: allocating 929.82 MiB on device 0: c
 ```
 
 The kernel can't satisfy a contiguous CUDA allocation. Run `tegrastats` and
-you'll see `lfb 11x4MB` or similar — the largest free block in the regular
-allocator is only 4 MB, even on a fresh boot. That's structural fragmentation,
-not accumulated junk.
+you'll see `lfb 11x4MB` or similar: the largest free block in the regular
+allocator is only 4 MB, even on a fresh boot. This is how Tegra's memory
+layout looks at boot, not something that builds up over time.
 
 ## Diagnosis
 
@@ -40,23 +40,23 @@ CmaFree:           13640 kB     # only 13 MB free
 CMA has plenty allocated *internally* by some Tegra subsystem, leaving 13 MB
 free out of 256 MB. NvMap can't get a contiguous block large enough.
 
-## Fix — bump CMA via kernel cmdline
+## Fix: bump CMA via kernel cmdline
 
-`cma=512M` is the sweet spot:
+`cma=512M` is what I settled on:
 
-- `cma=1G` **fails** at boot: `cma: Failed to reserve 1024 MiB`. Tegra234 has
+- `cma=1G` fails at boot with `cma: Failed to reserve 1024 MiB`. Tegra234 has
   fixed hardware carveouts (NvMap pre-reserve, GPU firmware regions, secure
   carveouts) at specific physical addresses, which fragments the available
   contiguous space at boot time. The kernel can't find a single 1 GB block to
   reserve for CMA. (Verify in `dmesg | grep -i cma`.)
-- `cma=512M` **works**. Gives `CmaTotal: 524288 kB, CmaFree: 482224 kB` —
-  a 36× improvement in free contiguous space over the default.
-- `cma=768M` — untested by us, may work; please file a PR if you check.
+- `cma=512M` works. Gives `CmaTotal: 524288 kB, CmaFree: 482224 kB`, which is
+  about 36× the default free contiguous space.
+- `cma=768M` is untested by me. May work; please file a PR if you check.
 
 ## The extlinux.conf trap
 
-**There are TWO `extlinux.conf` on an NVMe-booted Orin Nano**, and you almost
-certainly want to edit the one you'd never guess.
+On an NVMe-booted Orin Nano there are two `extlinux.conf` files, and the one
+you want to edit is the one you'd probably never guess.
 
 ```
 /                  → mounted from /dev/nvme0n1p1   (rootfs on NVMe)
@@ -70,7 +70,7 @@ L4TLauncher (the bootloader handler) reads `extlinux.conf` from **eMMC
 rootfs), your changes will appear to be saved but the next reboot ignores
 them entirely.
 
-We spent an hour debugging "we edited extlinux.conf, rebooted, /proc/cmdline
+I spent an hour debugging "I edited extlinux.conf, rebooted, /proc/cmdline
 unchanged" before noticing this. The eMMC copy is the canonical one.
 
 ### Edit procedure
@@ -124,20 +124,20 @@ sudo umount /mnt/emmc
 sudo reboot
 ```
 
-## What CMA tuning fixes — and what it doesn't
+## What CMA tuning does and doesn't fix
 
-**Fixes:**
+What it fixes:
 - `llama.cpp` dev-build at moderate `-ngl` (e.g. 28) loading Gemma 4 E4B
-  Q4_K_M reliably. Without the bump, it fails non-deterministically on the
+  Q4_K_M reliably. Without the bump it fails non-deterministically on the
   ~929 MB contiguous CUDA weight buffer.
 - General contiguity headroom for any large CUDA workload.
 
-**Does NOT fix:**
-- `-ngl 999` (full GPU offload) for Gemma 4 E4B Q4_K_M — the ~3 GB
-  contiguous weight buffer still fails. Even 512 MB CMA isn't enough.
-- Concurrent `llama.cpp` + PyTorch-based ASR on CUDA — that's a different
-  bug entirely (see [pytorch-nvml-conflict.md](pytorch-nvml-conflict.md)),
-  not a memory-size issue.
+What it doesn't fix:
+- `-ngl 999` (full GPU offload) for Gemma 4 E4B Q4_K_M. The ~3 GB contiguous
+  weight buffer still fails; even 512 MB CMA isn't enough.
+- Concurrent `llama.cpp` + PyTorch-based ASR on CUDA. That's a different bug
+  (see [pytorch-nvml-conflict.md](pytorch-nvml-conflict.md)), not a
+  memory-size issue.
 
 ## Trade-offs
 

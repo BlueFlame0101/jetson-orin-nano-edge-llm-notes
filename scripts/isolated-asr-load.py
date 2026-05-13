@@ -2,8 +2,8 @@
 """Isolated test: can a PyTorch-based NeMo ASR model load on CUDA?
 
 Tests the model load on CPU first as a sanity check, then on CUDA. Run with
-NO llama-server (or other CUDA workload) running — that's the whole point of
-the isolation.
+NO llama-server (or other CUDA workload) running. That's the whole point
+of the isolation.
 
 Compare with concurrent-loadtest.sh, which runs the same load alongside
 llama-server and reproduces the NVML assertion.
@@ -78,7 +78,7 @@ def main() -> int:
         )
         return 3
 
-    print("\nDONE — model loaded successfully on CUDA.")
+    print("\nDONE: model loaded successfully on CUDA.")
     return 0
 
 

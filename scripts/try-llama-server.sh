@@ -6,8 +6,8 @@
 # Usage: GGUF=/path/to/model.gguf LLAMA_BIN=/path/to/llama-server \
 #        ./try-llama-server.sh [ngl] [ctx-size] [batch-size]
 #
-# Defaults: ngl=28, ctx=1024, batch=128 — the working sweet spot for Gemma 4 E4B
-# Q4_K_M on Orin Nano 8 GB with cma=512M.
+# Defaults: ngl=28, ctx=1024, batch=128. The config I settled on for
+# Gemma 4 E4B Q4_K_M on Orin Nano 8 GB with cma=512M.
 set -u
 
 NGL="${1:-28}"
@@ -48,7 +48,7 @@ for i in $(seq 1 90); do
     break
   fi
   if ! kill -0 "$LP" 2>/dev/null; then
-    echo "llama-server DIED — log tail:"
+    echo "llama-server DIED. log tail:"
     tail -20 /tmp/llama_try.log
     exit 2
   fi

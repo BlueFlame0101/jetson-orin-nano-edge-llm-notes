@@ -50,7 +50,7 @@ for i in $(seq 1 90); do
     ok=1; break
   fi
   if ! kill -0 "$LLAMA_PID" 2>/dev/null; then
-    echo "llama-server died — log tail:"; tail -20 "$LLAMA_LOG"
+    echo "llama-server died. log tail:"; tail -20 "$LLAMA_LOG"
     exit 2
   fi
   sleep 2
@@ -60,7 +60,9 @@ echo "llama-server healthy after ~$((i*2))s"
 
 echo
 echo "=== [4/5] attempt to load NeMo ASR on CUDA WHILE llama-server runs ==="
+export MODEL_ID
 python3 - <<'PYEOF' || PY_EXIT=$?
+import os
 import sys
 import traceback
 import time
@@ -71,22 +73,22 @@ except Exception:
     print("NeMo not installed in this Python; this test needs nemo_toolkit.")
     sys.exit(4)
 
-model_id = "${MODEL_ID}"
+model_id = os.environ["MODEL_ID"]
 print(f"loading {model_id} on CUDA (llama-server is up)...")
 t0 = time.time()
 try:
     m = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.from_pretrained(
         model_id, map_location="cuda",
     )
-    print(f"SUCCESS in {time.time()-t0:.1f}s — model is on CUDA")
-    print("This is unexpected based on our findings — please file an issue / PR.")
+    print(f"SUCCESS in {time.time()-t0:.1f}s: model is on CUDA")
+    print("This is unexpected based on my findings. Please file an issue / PR.")
     sys.exit(0)
 except Exception:
     print(f"FAILED in {time.time()-t0:.1f}s:")
     traceback.print_exc()
     print()
     print("If the error contains 'NVML_SUCCESS == r INTERNAL ASSERT FAILED at")
-    print("CUDACachingAllocator.cpp:838' — you've reproduced the bug.")
+    print("CUDACachingAllocator.cpp:838', you've reproduced the bug.")
     sys.exit(5)
 PYEOF
 
@@ -101,8 +103,8 @@ echo
 if [ "$PY_EXIT" = "5" ]; then
   echo "Bug reproduced (PyTorch NVML assertion). See docs/pytorch-nvml-conflict.md"
 elif [ "$PY_EXIT" = "0" ]; then
-  echo "Bug NOT reproduced — model loaded fine. Please share your version info!"
+  echo "Bug NOT reproduced. Model loaded fine. Please share your version info!"
 else
-  echo "Test inconclusive (exit code $PY_EXIT) — see output above."
+  echo "Test inconclusive (exit code $PY_EXIT). See output above."
 fi
 echo "DONE"
