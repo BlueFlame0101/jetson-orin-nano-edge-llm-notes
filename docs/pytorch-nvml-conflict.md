@@ -3,6 +3,16 @@
 **Status:** unresolved. Reproducer below. I list workaround ideas at the
 bottom, none of them fully tested. PRs and pointers welcome.
 
+**2026-05-14 update:** a follow-up run with `tegrastats` at 500 ms cadence
+plus pre/post snapshots of `/proc/meminfo` and `/proc/buddyinfo` confirms
+this is **not** a classical OOM (no kills, `MemAvailable` stays ≥ 6 GB),
+but it **is** contiguous-memory pressure in the CMA/NvMap pool: during
+PyTorch's CUDA context init the largest-free-block collapses to a single
+4 MB chunk, NvMap fails to allocate a ~1 GB DMA buffer (`error 12`), and
+PyTorch's NVML query in `CUDACachingAllocator` then asserts. Full
+annotated capture: [`captures/2026-05-14-nvml-repro-with-diagnostics.md`](captures/2026-05-14-nvml-repro-with-diagnostics.md).
+Capture wrapper script: [`scripts/nvml-diag-capture.sh`](../scripts/nvml-diag-capture.sh).
+
 ## Symptom
 
 When running `llama.cpp` server (CUDA-enabled, dev-build) and then trying
