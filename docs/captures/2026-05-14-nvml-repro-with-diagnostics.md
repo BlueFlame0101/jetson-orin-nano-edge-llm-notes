@@ -174,14 +174,18 @@ Node 0, zone   Normal  59440  50533  38883  22684   2068    402     96     32   
 2. The failure is **contiguous-memory exhaustion in the CMA / NvMap pool**.
    `cma=512M` minus llama.cpp's ~300 MB context leaves NvMap unable to
    satisfy a 1 GB DMA-buffer request for PyTorch's CUDA context init.
-3. PyTorch's `CUDACachingAllocator::cuda_property` NVML query asserts as
-   a downstream symptom of the NvMap failure. It is not robust to
-   NvMap-failure device state.
+3. PyTorch's `CUDACachingAllocator::cuda_property` NVML query then fails.
+   I haven't fully isolated whether that NVML failure is a *direct
+   consequence* of the NvMap-failed device state, or a *parallel symptom*
+   of CUDA-context-init failing under CMA exhaustion — that would
+   require source-diving line 838 of `CUDACachingAllocator.cpp` on the
+   Jetson wheel build. Either way, the user-visible failure is a
+   PyTorch internal assertion that gives no hint about NvMap.
 
-So while the *root* cause is contiguous-memory contention between
-ggml-CUDA and PyTorch-CUDA on a Tegra UMA platform with a constrained CMA
-pool, the *user-visible* failure is a PyTorch internal assertion that
-gives no hint about NvMap.
+So while the *apparent* root cause is contiguous-memory contention
+between ggml-CUDA and PyTorch-CUDA on a Tegra UMA platform with a
+constrained CMA pool, the precise chain from NvMap-`ENOMEM` to PyTorch
+NVML-assert is still partially a hypothesis.
 
 ## Mitigations we have tried
 
