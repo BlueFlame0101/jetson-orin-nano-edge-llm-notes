@@ -6,12 +6,22 @@ bottom, none of them fully tested. PRs and pointers welcome.
 **2026-05-14 update:** a follow-up run with `tegrastats` at 500 ms cadence
 plus pre/post snapshots of `/proc/meminfo` and `/proc/buddyinfo` confirms
 this is **not** a classical OOM (no kills, `MemAvailable` stays ≥ 6 GB),
-but it **is** contiguous-memory pressure in the CMA/NvMap pool: during
-PyTorch's CUDA context init the largest-free-block collapses to a single
-4 MB chunk, NvMap fails to allocate a ~1 GB DMA buffer (`error 12`), and
-PyTorch's NVML query in `CUDACachingAllocator` then asserts. Full
-annotated capture: [`captures/2026-05-14-nvml-repro-with-diagnostics.md`](captures/2026-05-14-nvml-repro-with-diagnostics.md).
+but it **is** contiguous-memory pressure: during PyTorch's CUDA context
+init the largest-free-block collapses to a single 4 MB chunk, NvMap fails
+to allocate a ~1 GB DMA buffer (`error 12`), and PyTorch's NVML query in
+`CUDACachingAllocator` then asserts. Full annotated capture:
+[`captures/2026-05-14-nvml-repro-with-diagnostics.md`](captures/2026-05-14-nvml-repro-with-diagnostics.md).
 Capture wrapper script: [`scripts/nvml-diag-capture.sh`](../scripts/nvml-diag-capture.sh).
+
+**2026-06-02 update — mechanism correction from NVIDIA.** In
+[thread 370049 post #14](https://forums.developer.nvidia.com/t/pytorch-cudacachingallocator-nvml-assertion-when-sharing-cuda-context-with-llama-cpp-on-orin-nano-8-gb-jetpack-6-2-2/370049/14)
+NVIDIA staff state that **NvMap does not allocate from the CMA pool**. The
+failure is NvMap forwarding a contiguous-buffer request to the kernel, which
+can't provide contiguous memory — not the `cma=` reserve being drained. So
+the "CMA/NvMap pool" framing above (and in the capture) is wrong as to
+mechanism, though the observations hold. NVIDIA is adding internal debug
+prints to log the request's size + flag. Pending that, the precise pool the
+~1 GB contiguous request is served from is an open question.
 
 ## Symptom
 

@@ -22,6 +22,11 @@ Read on.
    contiguous allocation. I tried `cma=1G` and it failed at boot (Tegra234
    carveouts mean the kernel can't reserve that much), so 512M is what I
    landed on. See [docs/cma-tuning-tegra234.md](docs/cma-tuning-tegra234.md).
+   **(Mechanism correction, 2026-06-02:** NVIDIA staff state in [forum thread
+   370049](https://forums.developer.nvidia.com/t/pytorch-cudacachingallocator-nvml-assertion-when-sharing-cuda-context-with-llama-cpp-on-orin-nano-8-gb-jetpack-6-2-2/370049/14)
+   that NvMap does not allocate from CMA. The `cma=512M` bump still reliably
+   helps in practice, but *why* it helps is now an open question — likely
+   general contiguity, not the CMA reserve. See the doc for details.)**
 
 2. On an NVMe-booted Orin Nano there are two `extlinux.conf` files: one on
    the NVMe rootfs (`/dev/nvme0n1p1`), one on eMMC (`/dev/mmcblk0p1`).

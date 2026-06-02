@@ -13,6 +13,17 @@ collapses to a single 4 MB chunk, NvMap fails to allocate a ~1 GB DMA
 buffer (`error 12`), and PyTorch's `CUDACachingAllocator` then asserts
 on its NVML query because the device is in a bad state.
 
+> **Correction (2026-06-02), see [forum thread 370049 post #14](https://forums.developer.nvidia.com/t/pytorch-cudacachingallocator-nvml-assertion-when-sharing-cuda-context-with-llama-cpp-on-orin-nano-8-gb-jetpack-6-2-2/370049/14):**
+> NVIDIA staff clarified that **NvMap does not allocate from the CMA pool**, so
+> phrasings below like "the CMA pool that NvMap draws from" are inaccurate as to
+> mechanism. The observed facts are unchanged — `MemAvailable` ≈ 6 GB, `lfb`
+> collapse, the `NvMapMemAllocInternalTagged ... error 12` (~1 GB contiguous
+> request, ENOMEM) — but the failing contiguous request is forwarded to the
+> kernel's general allocator, not served from the `cma=` reserve. NVIDIA is
+> adding internal debug prints to log the request's size + flag to pin down the
+> exact heap. Read CMA-specific attributions below as a (now-corrected)
+> hypothesis.
+
 ## Stack
 
 ```

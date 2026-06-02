@@ -1,5 +1,17 @@
 # CMA tuning on Tegra234 (Orin Nano 8 GB)
 
+> **Correction (2026-06-02), see [forum thread 370049 post #14](https://forums.developer.nvidia.com/t/pytorch-cudacachingallocator-nvml-assertion-when-sharing-cuda-context-with-llama-cpp-on-orin-nano-8-gb-jetpack-6-2-2/370049/14):**
+> NVIDIA staff state that **NvMap does not allocate from the CMA pool**. The
+> contiguous-allocation failure is NvMap forwarding a contiguous-buffer request
+> to the kernel, which then can't provide contiguous memory — *not* the `cma=`
+> reserve being drained. That contradicts the "NvMap bottoms out in CMA"
+> mechanism I describe just below. The **empirical results in this doc still
+> hold** (bumping `cma=` to 512 MB and running `compact_memory` both reliably
+> change load success, reproducibly), but the **causal explanation is now
+> uncertain** — it may be general buddy-allocator contiguity rather than the CMA
+> reserve specifically. Treat the mechanism here as a working hypothesis pending
+> NVIDIA's debug-print findings; the tuning steps remain useful regardless.
+
 The Contiguous Memory Allocator (CMA) is a kernel-level pool used by NvMap
 (NVIDIA's Tegra memory allocator) to satisfy large contiguous physical
 allocations. CUDA on Jetson bottoms out in NvMap, which bottoms out in CMA
