@@ -12,6 +12,12 @@ which are Thor-only). JetPack 7.2 still hadn't shipped for Orin Nano when
 I wrote these notes (May 2026), so the dev-build path documented here is
 what you're stuck with in the meantime.
 
+> **Update 2026-07-27: that wait is over.** JetPack 7.2 shipped for Orin Nano
+> (L4T R39.2.0, built 2026-06-01) and my board runs it, so the container is no
+> longer blocked on driver availability. I have not run it, and I have not
+> re-measured any config in this doc on 7.2 — every number below is JetPack
+> 6.2.2 with CUDA 12.x. Treat them as a 6.2.2 baseline, not as current.
+
 ## Prerequisites
 
 - `cma=512M` on the kernel cmdline (see

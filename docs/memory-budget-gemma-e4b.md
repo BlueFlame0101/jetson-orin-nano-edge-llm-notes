@@ -5,6 +5,12 @@ Numbers from running on a Jetson Orin Nano Super 8 GB, JetPack 6.2.2,
 the same ballpark; exact figures vary with kernel version, system
 services, and which ASR backend you use.
 
+> **Platform note (2026-07-27).** Not re-measured on JetPack 7.2 (L4T R39.2.0,
+> Ubuntu 24.04, CUDA 13.2), which the same board now runs — and note that the
+> `cma=512M` premise above does not hold there, since the upgrade resets the
+> kernel cmdline to the 256 MB default. An idle 7.2 boot reports 7.3 GiB total
+> and 6.6 GiB available.
+
 ## System overhead
 
 | State | RAM used | Notes |

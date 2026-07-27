@@ -1,7 +1,14 @@
 # PyTorch `CUDACachingAllocator` NVML assertion when sharing CUDA with `llama.cpp`
 
-**Status:** unresolved. Reproducer below. I list workaround ideas at the
-bottom, none of them fully tested. PRs and pointers welcome.
+**Status:** unresolved on JetPack 6.2.2. Reproducer below. I list workaround
+ideas at the bottom, none of them fully tested. PRs and pointers welcome.
+
+**2026-07-27 scope note.** This conflict was found and reproduced on JetPack
+6.2.2 (CUDA 12.x, NVIDIA's Jetson PyTorch wheel for that stack). The board has
+since moved to JetPack 7.2 (L4T R39.2.0, CUDA 13.2), where PyTorch is no longer
+installed at all, so I have **not** re-tested it. Whether the assertion still
+fires there is an open question — do not read this page as either a current bug
+report or a fixed one.
 
 **2026-05-14 update:** a follow-up run with `tegrastats` at 500 ms cadence
 plus pre/post snapshots of `/proc/meminfo` and `/proc/buddyinfo` confirms
@@ -129,7 +136,8 @@ I don't have this fully nailed down. The best guesses I have:
    version when NVIDIA released the official Jetson wheel. JetPack 6.2.2
    might ship a slightly newer NVML that PyTorch wasn't expecting, leading
    to the unexpected return code. JetPack 7.2, when it lands for Orin
-   Nano, may fix this.
+   Nano, may fix this. **(2026-07-27: 7.2 is installed on this board, but
+   PyTorch is not, so this hypothesis remains untested.)**
 
 ## Workarounds (none fully tested)
 
@@ -163,6 +171,10 @@ In rough order from least to most invasive:
    Thor-only, and 7.2 still hadn't shipped for Orin Nano when I wrote
    this, so I can't test it. If you've run that container alongside
    PyTorch on the same device, I'd love to know the result.
+   **(2026-07-27: the blocker is gone — JetPack 7.2 shipped for Orin Nano in
+   June 2026, L4T R39.2.0. This workaround is now testable. I still haven't
+   tested it, and on 7.2 the conflict itself is unverified, so the whole
+   question may be moot.)**
 
 ## Why upstream PyTorch hasn't fixed this
 
@@ -177,4 +189,6 @@ reproducer if there isn't one already.
 ## If you've solved this
 
 PR welcome. I'd much rather ship on dev-build `llama.cpp` than wait on
-JetPack 7.2 landing for Orin Nano.
+JetPack 7.2 landing for Orin Nano. **(2026-07-27: 7.2 has since arrived on
+this board. The question is now whether the conflict exists there at all —
+see the scope note at the top.)**

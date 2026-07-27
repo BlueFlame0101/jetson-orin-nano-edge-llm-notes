@@ -14,6 +14,70 @@ Read on.
 
 ---
 
+## Update 2026-07-27: JetPack 7.2 has shipped for Orin Nano
+
+Everything below was measured on JetPack 6.2.2. That is no longer the only
+option: **JetPack 7.2 is out and running on Orin Nano.** If you came here
+looking for "is 7.x still Thor-only" — it isn't. My Orin Nano runs 7.2 (L4T
+R39.2.0, build-dated 2026-06-01).
+
+Measured on my own board on 2026-07-27:
+
+| | May 2026 (notes below) | Now |
+|---|---|---|
+| JetPack | 6.2.2 | **7.2-b187** (`nvidia-jetpack` meta-package) |
+| L4T | R36.5.0 | **R39.2.0**, GCID 45755727, `DATE: Mon Jun 1 2026` |
+| Ubuntu | 22.04 | **24.04.4 LTS** |
+| Kernel | 5.15.148-tegra | **6.8.12-1021-tegra** |
+| CUDA | 12.x | **13.2** |
+| TensorRT | — (not recorded) | **10.16.2.10** (`+cuda13.2`), `trtexec` present |
+| `cma=` on cmdline | 512M (hand-set) | **absent** |
+| `MemTotal` | 7790360 kB | **7665088 kB** |
+| Power modes offered | MAXN_SUPER used | **only `15W` (ID 0) and `7W` (ID 1)** |
+
+Note on that last row, because it matters for every throughput number in these
+notes: on this 7.2 install `nvpmodel` exposes exactly two profiles, 15W and 7W.
+There is no MAXN_SUPER, and `/proc/device-tree/model` now reads `NVIDIA Jetson
+Orin Nano Developer Kit` — no "Super". The board was running the Super profile
+when everything below was measured. I don't know yet whether the Super profile
+returns with a firmware/config step on 7.2; I haven't chased it.
+
+How the upgrade happened, since it changes what you should expect: this was an
+**in-place APT upgrade, not a reflash**. `/etc/machine-id` and
+`/etc/netplan/00-installer-config.yaml` still carry their original 2025-07-02
+timestamps, and APT history shows a `dist-upgrade` onto the Ubuntu 24.04 `t64`
+package set around 2026-06-27. **`cma=512M` did not survive it** — the board is
+back on the 256 MB default (`CmaTotal: 262144 kB`). I did not inspect the eMMC
+`extlinux.conf` afterwards, so I can't say from measurement whether the upgrade
+rewrote it or something else dropped the parameter; what I can say is that the
+tweak is gone and you should expect to redo it.
+
+What this means for the four findings, honestly:
+
+- **The measurements below stand for JetPack 6.2.2.** I have not re-run any of
+  them on 7.2. Nothing here is retracted; it is scoped.
+- **CMA looks different at idle, and that is not a result.** An idle 7.2 boot
+  shows `CmaFree: 222628 kB` — about 222 MB of the 256 MB free — where the 6.2.2
+  capture in [docs/cma-tuning-tegra234.md](docs/cma-tuning-tegra234.md) recorded
+  13 MB free out of the same 256 MB. One idle reading, nothing loaded. I have not
+  attempted a Gemma load on 7.2, so whether the contiguous-allocation failure
+  still occurs is **untested**.
+- **The PyTorch/`llama.cpp` NVML conflict (finding 3) is not re-tested.** PyTorch
+  no longer imports on this board — neither system-wide nor in the project venv
+  it used to live in — and CUDA has moved 12.x → 13.2, so the wheel, the
+  allocator and the driver would all be different anyway. Do not assume the
+  conflict survived the upgrade, and do not assume it was fixed.
+- **The container path may now be open.** The production runtime
+  `ghcr.io/nvidia-ai-iot/llama_cpp:gemma4-jetson-orin` needed the driver that
+  ships with JetPack 7.2. That driver now exists for Orin Nano. I have not run
+  the container. If you do, a PR with results would be genuinely useful.
+
+Board for the 2026-07-27 readings: Jetson Orin Nano Developer Kit, rootfs on
+NVMe (`/dev/nvme0n1p1`), power mode 15W, `free -h` showing 7.3 GiB total and
+6.6 GiB available with no workload running.
+
+---
+
 ## TL;DR: the four findings
 
 1. The kernel cmdline needs `cma=512M` before `llama.cpp` dev-build will
@@ -27,12 +91,19 @@ Read on.
    that NvMap does not allocate from CMA. The `cma=512M` bump still reliably
    helps in practice, but *why* it helps is now an open question — likely
    general contiguity, not the CMA reserve. See the doc for details.)**
+   **(Platform note, 2026-07-27:** measured on JetPack 6.2.2. The JetPack 7.2
+   upgrade resets the kernel cmdline, so `cma=512M` is not carried over and the
+   board is back on the 256 MB default. Not re-tested on 7.2 — see the update
+   section above.)**
 
 2. On an NVMe-booted Orin Nano there are two `extlinux.conf` files: one on
    the NVMe rootfs (`/dev/nvme0n1p1`), one on eMMC (`/dev/mmcblk0p1`).
    L4TLauncher reads the eMMC copy. I edited the NVMe one, rebooted, and
    nothing changed, which cost me an hour before I figured out why. See
    [docs/cma-tuning-tegra234.md](docs/cma-tuning-tegra234.md#the-extlinuxconf-trap).
+   **(Platform note, 2026-07-27:** found on JetPack 6.2.2. I have not re-checked
+   the boot chain or the partition layout on JetPack 7.2, so verify the paths
+   before following the edit procedure there.)**
 
 3. `llama.cpp` dev-build and PyTorch-based ASR cannot share a CUDA context
    on Jetson (verified against llama.cpp `f3c3e0e` and PyTorch from
@@ -44,6 +115,9 @@ Read on.
    CTranslate2-based providers (faster-whisper, Røst-CT2) don't hit it. I
    don't have a fix; reproducer and hypotheses in
    [docs/pytorch-nvml-conflict.md](docs/pytorch-nvml-conflict.md).
+   **(Platform note, 2026-07-27:** JetPack 6.2.2 only. Not re-tested on JetPack
+   7.2, where CUDA is 13.2 and a different PyTorch wheel would be required.
+   Neither confirmed nor fixed there.)**
 
 4. The dev-build config that worked for Gemma 4 E4B Q4_K_M on this
    hardware: `-ngl 28 --ctx-size 1024 --batch-size 128 --fit off`, with env
@@ -52,10 +126,16 @@ Read on.
    offload (`-ngl 999`) doesn't fit; the 3 GB contiguous weight buffer
    fails even with `cma=512M`. See
    [docs/llama-cpp-orin-nano-8gb.md](docs/llama-cpp-orin-nano-8gb.md).
+   **(Platform note, 2026-07-27:** JetPack 6.2.2 only, and the throughput
+   numbers are tied to that stack. Not re-measured on JetPack 7.2.)**
 
 ---
 
 ## Memory budget (8 GB unified): what actually fits
+
+All figures below are JetPack 6.2.2. For reference, the same board on JetPack
+7.2 reports `MemTotal: 7665088 kB` against 7790360 kB on 6.2.2 — about 122 MB
+less — with the CMA pool back at its 256 MB default (measured 2026-07-27, idle).
 
 | Component | Size on Orin Nano 8 GB | Notes |
 |---|---|---|
@@ -80,10 +160,21 @@ What might fit, untested by me:
   yet (see below). It uses a different CUDA allocator strategy and may
   not hit the PyTorch/llama.cpp NVML conflict. If you've run it
   alongside PyTorch ASR on the same device, PRs welcome.
+  **(2026-07-27: the driver constraint no longer applies — JetPack 7.2 is
+  available for Orin Nano and installed on this board. Still untested by me.)**
 
 ---
 
 ## Why dev-build and not containers
+
+> **Superseded, 2026-07-27.** This entire section — both bullets about JetPack
+> availability, and the closing paragraph — describes the situation in May 2026.
+> JetPack 7.2 is now available for Orin Nano and my board runs it (7.2-b187,
+> L4T R39.2.0, CUDA 13.2), which means the driver blocker in the first two
+> bullets is gone and "when 7.2 lands" has already happened. The section is kept
+> as written because it explains why the dev-build path exists at all, and
+> because everything measured in these notes was measured under it. I have not
+> tried the container path on 7.2. See the update section at the top.
 
 The standard "just use a container" advice doesn't work cleanly on Orin
 Nano right now, which is why these notes exist. Specifically:
@@ -94,10 +185,14 @@ Nano right now, which is why these notes exist. Specifically:
   next JetPack expected to bring the newer driver (R595+) to Orin Nano
   is 7.2, which was originally targeted at Q1 2026, slipped to Q2 2026,
   and was still unreleased as of mid-May 2026 when these notes were
-  written.
+  written. **(Overtaken by events: 7.2 is available for Orin Nano and running
+  on my board — L4T R39.2.0, build-dated 2026-06-01. I did not record the
+  public release date, only the build date on the installed image.)**
 - **`nvcr.io/nvidia/nemo:26.02` (ARM64) is built for ARM SBSA servers**
   (GH200 / GB200), not Jetson. It requires driver 580.95+ which isn't
-  available on Orin Nano until JetPack 7.2.
+  available on Orin Nano until JetPack 7.2. **(2026-07-27: 7.2 is installed on
+  this board now; I have not checked the resulting driver version against the
+  580.95 requirement.)**
 - **`dustynv/nemo` community container's latest tag is `r36.2.0` from
   December 2023** with a PyTorch 2.2 base. It loads but isn't compatible
   with the ASR models I need.
@@ -109,11 +204,21 @@ Nano right now, which is why these notes exist. Specifically:
 So the dev-build path documented here isn't a stylistic choice. It's the
 only path that currently works for the model + ASR + JetPack 6.2.2
 combination on Orin Nano. When 7.2 lands, most of this becomes
-re-evaluable.
+re-evaluable. **(2026-07-27: it has landed. Everything in this section is
+therefore open for re-evaluation — I just haven't done it.)**
 
 ---
 
 ## Test environment
+
+Everything in these notes was measured on the stack below. The same board now
+runs JetPack 7.2 / L4T R39.2.0 / Ubuntu 24.04.4 / kernel 6.8.12-1021-tegra /
+CUDA 13.2 (measured 2026-07-27) — nothing here has been re-measured on it.
+
+Two differences worth naming, because they affect comparability rather than
+just version strings: on 7.2 this board reports itself as `NVIDIA Jetson Orin
+Nano Developer Kit` (no "Super"), and `nvpmodel` offers only `15W` and `7W` —
+the MAXN_SUPER profile used for every measurement below is not among them.
 
 - **Board:** NVIDIA Jetson Orin Nano Super Developer Kit, 8 GB
 - **Storage:** Kingston KC3000 NVMe M.2 SSD (1 TB) for rootfs; eMMC for boot

@@ -12,6 +12,20 @@
 > reserve specifically. Treat the mechanism here as a working hypothesis pending
 > NVIDIA's debug-print findings; the tuning steps remain useful regardless.
 
+> **Platform update (2026-07-27).** This page is JetPack 6.2.2 / L4T R36.5.0.
+> The board has since gone to JetPack 7.2 (L4T R39.2.0, Ubuntu 24.04, kernel
+> 6.8.12-1021-tegra, CUDA 13.2) via an in-place APT `dist-upgrade`, and
+> **`cma=512M` did not survive it**: `/proc/cmdline` no longer carries a `cma=`
+> parameter and the pool is back at the 256 MB default (`CmaTotal: 262144 kB`,
+> measured). I did not inspect the eMMC `extlinux.conf` after the upgrade, so I
+> can't say from measurement what dropped the parameter — only that it is gone.
+> Two consequences: if you upgrade, expect to redo the edit below; and the
+> `extlinux.conf` procedure here has not been re-verified on the 7.2 boot chain,
+> so check the paths before trusting the `sed` line. One idle reading on 7.2
+> showed `CmaFree: 222628 kB` — 222 MB of the 256 MB free, against the 13 MB
+> recorded below on 6.2.2 — but I have not attempted a model load on 7.2, so
+> whether the allocation failure still reproduces is untested.
+
 The Contiguous Memory Allocator (CMA) is a kernel-level pool used by NvMap
 (NVIDIA's Tegra memory allocator) to satisfy large contiguous physical
 allocations. CUDA on Jetson bottoms out in NvMap, which bottoms out in CMA
